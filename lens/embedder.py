@@ -14,7 +14,7 @@ def _embed(text: str) -> list[float]:
     response = requests.post(
         f"{OLLAMA_BASE_URL}/api/embeddings",
         json={"model": EMBED_MODEL, "prompt": text},
-        timeout=30,
+        timeout=120,
     )
     response.raise_for_status()
     return response.json()["embedding"]
@@ -22,6 +22,8 @@ def _embed(text: str) -> list[float]:
 
 def embed_chunks(chunks: list[str]) -> list[list[float]]:
     """Returns embedding vectors for a list of text chunks."""
+    # Warm up the model on first call (loads it into memory)
+    _embed("warmup")
     return [_embed(chunk) for chunk in chunks]
 
 

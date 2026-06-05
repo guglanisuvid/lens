@@ -1,4 +1,4 @@
-from lens.cli import app
+from lens.cli import run_repl
 
 if __name__ == "__main__":
-    app()
+    run_repl()

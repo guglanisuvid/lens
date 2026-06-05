@@ -57,6 +57,7 @@ def query(embedding: list[float], n_results: int = 5) -> list[dict]:
 
     results = (
         table.search(embedding)
+             .metric("cosine")
              .limit(n_results)
              .to_list()
     )
@@ -77,8 +78,9 @@ def list_sources() -> list[str]:
     table = get_table()
     if table is None:
         return []
-    rows = table.to_pandas()
-    return sorted(rows["source"].unique().tolist())
+    rows = table.to_arrow()
+    sources = rows.column("source").to_pylist()
+    return sorted(set(sources))
 
 
 def clear_index():
