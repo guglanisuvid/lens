@@ -19,8 +19,9 @@ build/
 dist/
 *.spec
 
-# Test artifacts
-tests/sample_docs/
+# User documents — add your own files here, they won't be committed
+sample_docs/*
+!sample_docs/.gitkeep
 
 # OS
 .DS_Store
