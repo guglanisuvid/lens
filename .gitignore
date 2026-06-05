@@ -1,0 +1,32 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.venv/
+venv/
+env/
+
+# ChromaDB local storage
+.chromadb/
+chroma_db/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Test artifacts
+tests/sample_docs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
