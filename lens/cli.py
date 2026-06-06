@@ -1,6 +1,5 @@
 """Interactive REPL for Lens — enter `lens` to start."""
 import os
-import shlex
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -20,7 +19,7 @@ HELP_TEXT = """
   [green]/help[/green]              Show this help
   [green]/exit[/green]              Exit Lens
 
-[dim]Tip: wrap multi-word input in quotes, e.g. /ask "what is the refund policy?"[/dim]
+[dim]Tip: type /ask what is the refund policy? — no quotes needed[/dim]
 """
 
 
@@ -48,7 +47,9 @@ def _cmd_upload(args: list[str]):
     path = args[0]
     if os.path.isdir(path):
         files = [
-            os.path.join(path, f) for f in os.listdir(path)
+            os.path.join(root, f)
+            for root, _, filenames in os.walk(path)
+            for f in filenames
             if f.lower().endswith((".pdf", ".txt"))
         ]
     elif os.path.isfile(path):
@@ -88,7 +89,7 @@ def _cmd_ask(args: list[str]):
     from lens.task import ask_question
     from lens.formatter import print_answer
 
-    question = " ".join(args)
+    question = args[0]
     console.print(f"\n[bold green]Question:[/bold green] {question}\n")
 
     with Progress(SpinnerColumn(), TextColumn("Searching..."), transient=True) as progress:
@@ -112,7 +113,7 @@ def _cmd_task(args: list[str]):
     from lens.task import run_task
     from lens.formatter import print_output
 
-    description = " ".join(args)
+    description = args[0]
     console.print(f"\n[bold blue]Task:[/bold blue] {description}\n")
 
     with Progress(SpinnerColumn(), TextColumn("Thinking..."), transient=True) as progress:
@@ -178,13 +179,10 @@ def run_repl():
             console.print(HELP_TEXT)
             continue
 
-        try:
-            parts = shlex.split(raw)
-        except ValueError as e:
-            console.print(f"[red]Parse error:[/red] {e}")
-            continue
-
-        cmd, *args = parts
+        parts = raw.split(None, 1)
+        cmd = parts[0]
+        remainder = parts[1] if len(parts) > 1 else ""
+        args = [remainder] if remainder else []
 
         if cmd not in COMMANDS:
             console.print(f"[yellow]Unknown command:[/yellow] {cmd}  (type [bold]/help[/bold] for commands)")

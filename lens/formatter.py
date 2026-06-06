@@ -24,20 +24,25 @@ def print_answer(answer: str, sources: list[dict]):
 
 
 def print_sources_list(sources: list[str]):
-    """Render the list of indexed documents."""
+    """Render the list of indexed documents grouped by folder."""
+    import os
     if not sources:
-        console.print("[yellow]No documents indexed yet. Run: lens upload <file>[/yellow]")
+        console.print("[yellow]No documents indexed yet.[/yellow]")
         return
 
-    table = Table(title="Indexed Documents", box=box.ROUNDED, border_style="dim")
-    table.add_column("#",        style="dim",  width=4)
-    table.add_column("Document", style="bold")
-
-    for i, source in enumerate(sources, 1):
-        table.add_row(str(i), source)
+    # Group by parent folder
+    groups: dict[str, list[str]] = {}
+    for source in sources:
+        folder = os.path.dirname(source) if os.path.dirname(source) else "."
+        groups.setdefault(folder, []).append(os.path.basename(source))
 
     console.print()
-    console.print(table)
+    console.print(f"[bold]Indexed documents:[/bold] {len(sources)} file(s)\n")
+    for folder, files in sorted(groups.items()):
+        console.print(f"  [cyan]{folder}[/cyan]")
+        for f in sorted(files):
+            console.print(f"    [dim]└[/dim] {f}")
+    console.print()
 
 
 def print_upload_progress(filename: str, n_chunks: int):

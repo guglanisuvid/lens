@@ -1,36 +1,87 @@
-"""Task decomposition and answer synthesis via Groq (llama3.1-8b-instant)."""
+"""Task decomposition and answer synthesis — supports Groq, OpenAI, Anthropic, Ollama."""
 import os
 import json
-from groq import Groq
 from dotenv import load_dotenv
 from lens.retriever import retrieve, retrieve_multi
 
 load_dotenv()
 
+PROVIDER = os.getenv("LLM_PROVIDER", "groq").lower()
+
 _client = None
 
 
-def get_client() -> Groq:
+def _get_client():
     global _client
-    if _client is None:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
+    if _client is not None:
+        return _client
+
+    if PROVIDER == "groq":
+        from groq import Groq
+        key = os.getenv("GROQ_API_KEY")
+        if not key:
             raise ValueError("GROQ_API_KEY not set in .env")
-        _client = Groq(api_key=api_key)
+        _client = Groq(api_key=key)
+
+    elif PROVIDER == "openai":
+        from openai import OpenAI
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            raise ValueError("OPENAI_API_KEY not set in .env")
+        _client = OpenAI(api_key=key)
+
+    elif PROVIDER == "anthropic":
+        import anthropic
+        key = os.getenv("ANTHROPIC_API_KEY")
+        if not key:
+            raise ValueError("ANTHROPIC_API_KEY not set in .env")
+        _client = anthropic.Anthropic(api_key=key)
+
+    elif PROVIDER == "ollama":
+        from openai import OpenAI
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        _client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama")
+
+    else:
+        raise ValueError(f"Unknown LLM_PROVIDER: '{PROVIDER}'. Choose: groq, openai, anthropic, ollama")
+
     return _client
 
 
+def _default_model() -> str:
+    defaults = {
+        "groq":      "llama-3.1-8b-instant",
+        "openai":    "gpt-4o-mini",
+        "anthropic": "claude-haiku-4-5-20251001",
+        "ollama":    "llama3",
+    }
+    return os.getenv("LLM_MODEL", defaults.get(PROVIDER, ""))
+
+
 def _chat(messages: list[dict], temperature: float = 0.1) -> str:
-    response = get_client().chat.completions.create(
-        model       = "llama-3.1-8b-instant",
-        messages    = messages,
-        temperature = temperature,
+    client = _get_client()
+    model  = _default_model()
+
+    if PROVIDER == "anthropic":
+        # Anthropic uses a different SDK interface
+        system_msg = next((m["content"] for m in messages if m["role"] == "system"), None)
+        user_msgs  = [m for m in messages if m["role"] != "system"]
+        kwargs = {"model": model, "max_tokens": 2048, "messages": user_msgs, "temperature": temperature}
+        if system_msg:
+            kwargs["system"] = system_msg
+        response = client.messages.create(**kwargs)
+        return response.content[0].text.strip()
+
+    # Groq, OpenAI, Ollama all use OpenAI-compatible interface
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
     )
     return response.choices[0].message.content.strip()
 
 
 def _decompose_task(description: str) -> list[str]:
-    """Ask the LLM to break a task into 3-5 search queries."""
     prompt = f"""You are a search query generator. Given a task, generate 3-5 specific search queries
 to retrieve all relevant information needed to complete that task from a document database.
 
@@ -48,7 +99,6 @@ Return ONLY a JSON array of query strings. No explanation. Example:
 
 
 def _format_chunks(chunks: list[dict]) -> str:
-    """Format retrieved chunks into a context string with citations."""
     parts = []
     for i, chunk in enumerate(chunks, 1):
         parts.append(f"[{i}] Source: {chunk['source']}, Page {chunk['page']}\n{chunk['text']}")
@@ -56,24 +106,13 @@ def _format_chunks(chunks: list[dict]) -> str:
 
 
 def run_task(description: str) -> dict:
-    """
-    1. Decompose task into sub-queries
-    2. Retrieve relevant chunks per sub-query
-    3. Synthesize structured markdown table via Groq
-    Returns: {output, sources}
-    """
-    # Step 1: decompose
     queries = _decompose_task(description)
-
-    # Step 2: retrieve across all queries
-    chunks = retrieve_multi(queries, n_per_query=4)
+    chunks  = retrieve_multi(queries, n_per_query=4)
     if not chunks:
         return {"output": "No relevant documents found in the index.", "sources": []}
 
     context = _format_chunks(chunks)
-
-    # Step 3: synthesize
-    prompt = f"""You are a document analyst. Using ONLY the provided document excerpts, complete the following task.
+    prompt  = f"""You are a document analyst. Using ONLY the provided document excerpts, complete the following task.
 
 Task: {description}
 
@@ -87,25 +126,18 @@ Instructions:
 - After the table/answer, list citations as: [n] filename, page X
 - If information is missing, say "Not found in documents"
 """
-
-    output = _chat([{"role": "user", "content": prompt}], temperature=0.0)
+    output  = _chat([{"role": "user", "content": prompt}], temperature=0.0)
     sources = [{"source": c["source"], "page": c["page"], "score": c["score"]} for c in chunks]
-
     return {"output": output, "sources": sources}
 
 
 def ask_question(question: str) -> dict:
-    """
-    Standard Q&A with citations.
-    Returns: {answer, sources}
-    """
     chunks = retrieve(question, n_results=5)
     if not chunks:
         return {"answer": "No relevant documents found in the index.", "sources": []}
 
     context = _format_chunks(chunks)
-
-    prompt = f"""Answer the following question using ONLY the provided document excerpts.
+    prompt  = f"""Answer the following question using ONLY the provided document excerpts.
 
 Question: {question}
 
@@ -117,8 +149,6 @@ Instructions:
 - Cite your sources inline as [1], [2] etc.
 - If the answer is not in the documents, say "This information was not found in your documents"
 """
-
     answer  = _chat([{"role": "user", "content": prompt}], temperature=0.0)
     sources = [{"source": c["source"], "page": c["page"], "score": c["score"]} for c in chunks]
-
     return {"answer": answer, "sources": sources}

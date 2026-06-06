@@ -25,7 +25,7 @@ def parse_file(path: str) -> list[dict]:
 def _parse_pdf(path: str) -> list[dict]:
     chunks = []
     doc = fitz.open(path)
-    source = os.path.basename(path)
+    source = os.path.abspath(path)
 
     for page_num, page in enumerate(doc, start=1):
         text = page.get_text().strip()
@@ -43,7 +43,7 @@ def _parse_pdf(path: str) -> list[dict]:
 
 
 def _parse_txt(path: str) -> list[dict]:
-    source = os.path.basename(path)
+    source = os.path.abspath(path)
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
 
