@@ -281,6 +281,12 @@ The irony is not lost on us.
 
 ---
 
-## GitHub
+## License
 
-[https://github.com/guglanisuvid/lens](https://github.com/guglanisuvid/lens)
+MIT — see [LICENSE](LICENSE).
+
+---
+
+## Release
+
+Latest release: [v1.0.0](https://github.com/guglanisuvid/lens/releases/tag/v1.0.0)
