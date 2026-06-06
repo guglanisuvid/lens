@@ -57,22 +57,46 @@ def print_info(message: str):
     console.print(f"[dim]{message}[/dim]")
 
 
+def _relevance_label(score: float) -> str:
+    if score >= 0.70:
+        return "[bold green]High[/bold green]"
+    elif score >= 0.50:
+        return "[yellow]Med[/yellow]"
+    else:
+        return "[red]Low[/red]"
+
+
 def _print_sources(sources: list[dict]):
     if not sources:
         return
 
-    table = Table(title="Sources", box=box.SIMPLE, border_style="dim", show_header=True)
-    table.add_column("Score", style="dim",   width=7)
-    table.add_column("File",  style="cyan")
-    table.add_column("Page",  style="dim",   width=6)
+    import os
 
-    seen = set()
+    table = Table(title="Sources", box=box.SIMPLE, border_style="dim", show_header=True)
+    table.add_column("Relevance", width=9)
+    table.add_column("File",      style="cyan")
+    table.add_column("Page",      style="dim", width=6)
+
+    seen    = set()
+    unique  = []
     for s in sources:
         key = (s["source"], s["page"])
         if key in seen:
             continue
         seen.add(key)
-        table.add_row(str(s["score"]), s["source"], str(s["page"]))
+        unique.append(s)
+        table.add_row(
+            _relevance_label(s["score"]),
+            os.path.basename(s["source"]),
+            str(s["page"]),
+        )
 
     console.print()
     console.print(table)
+
+    # Show excerpts
+    for i, s in enumerate(unique, 1):
+        text = s.get("text", "")
+        if text:
+            excerpt = text[:220].replace("\n", " ").strip()
+            console.print(f"  [dim][{i}] ...{excerpt}...[/dim]")

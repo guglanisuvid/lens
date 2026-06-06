@@ -124,10 +124,11 @@ Instructions:
 - Be concise and factual
 - Only use information from the excerpts
 - After the table/answer, list citations as: [n] filename, page X
+- If sources contradict each other on any point, note it explicitly as "⚠ Conflict:" in that cell
 - If information is missing, say "Not found in documents"
 """
     output  = _chat([{"role": "user", "content": prompt}], temperature=0.0)
-    sources = [{"source": c["source"], "page": c["page"], "score": c["score"]} for c in chunks]
+    sources = [{"source": c["source"], "page": c["page"], "score": c["score"], "text": c["text"]} for c in chunks]
     return {"output": output, "sources": sources}
 
 
@@ -147,8 +148,9 @@ Document excerpts:
 Instructions:
 - Answer directly and concisely
 - Cite your sources inline as [1], [2] etc.
+- If sources contradict each other, start your answer with "⚠ Conflicting sources:" and explain the conflict
 - If the answer is not in the documents, say "This information was not found in your documents"
 """
     answer  = _chat([{"role": "user", "content": prompt}], temperature=0.0)
-    sources = [{"source": c["source"], "page": c["page"], "score": c["score"]} for c in chunks]
+    sources = [{"source": c["source"], "page": c["page"], "score": c["score"], "text": c["text"]} for c in chunks]
     return {"answer": answer, "sources": sources}

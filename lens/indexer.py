@@ -83,6 +83,41 @@ def list_sources() -> list[str]:
     return sorted(set(sources))
 
 
+def source_exists(source: str) -> bool:
+    """Return True if this exact source path is already indexed."""
+    table = get_table()
+    if table is None:
+        return False
+    rows = table.to_arrow()
+    return source in set(rows.column("source").to_pylist())
+
+
+def remove_source(source: str) -> int:
+    """Remove all chunks for a source path. Returns number of chunks deleted."""
+    global _table
+    table = get_table()
+    if table is None:
+        return 0
+
+    import pyarrow.compute as pc
+    all_rows = table.to_arrow()
+    mask     = pc.not_equal(all_rows.column("source"), source)
+    kept     = all_rows.filter(mask)
+    removed  = all_rows.num_rows - kept.num_rows
+
+    if removed == 0:
+        return 0
+
+    db = _get_db()
+    db.drop_table(TABLE_NAME)
+    _table = None
+
+    if kept.num_rows > 0:
+        _table = db.create_table(TABLE_NAME, data=kept)
+
+    return removed
+
+
 def clear_index():
     """Drop the table entirely."""
     global _table

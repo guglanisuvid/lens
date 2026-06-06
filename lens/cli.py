@@ -11,13 +11,14 @@ HELP_TEXT = """
 [bold cyan]Lens[/bold cyan] — task-based document intelligence
 
 [bold]Commands:[/bold]
-  [green]/upload[/green] [dim]<path>[/dim]     Index a PDF/txt file or folder
-  [green]/ask[/green] [dim]<question>[/dim]    Ask a question against indexed docs
+  [green]/upload[/green] [dim]<path>[/dim]      Index a PDF/txt file or folder
+  [green]/ask[/green] [dim]<question>[/dim]     Ask a question against indexed docs
   [green]/task[/green] [dim]<description>[/dim] Run a structured task across docs
-  [green]/docs[/green]              List all indexed documents
-  [green]/clear[/green]             Wipe the entire index
-  [green]/help[/green]              Show this help
-  [green]/exit[/green]              Exit Lens
+  [green]/docs[/green]               List all indexed documents
+  [green]/remove[/green] [dim]<name>[/dim]      Remove a document from the index
+  [green]/clear[/green]              Wipe the entire index
+  [green]/help[/green]               Show this help
+  [green]/exit[/green]               Exit Lens
 
 [dim]Tip: type /ask what is the refund policy? — no quotes needed[/dim]
 """
@@ -41,7 +42,7 @@ def _cmd_upload(args: list[str]):
 
     from lens.parser import parse_file
     from lens.embedder import embed_chunks
-    from lens.indexer import add_chunks, list_sources
+    from lens.indexer import add_chunks, list_sources, source_exists
     from lens.formatter import print_upload_progress, print_error
 
     path = args[0]
@@ -65,6 +66,11 @@ def _cmd_upload(args: list[str]):
     console.print(f"\n[bold blue]Indexing {len(files)} file(s)...[/bold blue]\n")
 
     for file in files:
+        source_path = os.path.abspath(file)
+        if source_exists(source_path):
+            console.print(f"  [yellow]↷[/yellow] [dim]{os.path.basename(file)} — already indexed, skipping[/dim]")
+            continue
+
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
             progress.add_task(f"Processing {os.path.basename(file)}...")
             try:
@@ -133,6 +139,37 @@ def _cmd_docs(_args: list[str]):
     print_sources_list(list_sources())
 
 
+def _cmd_remove(args: list[str]):
+    if not args:
+        console.print("[yellow]Usage: /remove <filename or partial path>[/yellow]")
+        return
+
+    from lens.indexer import list_sources, remove_source
+
+    query = args[0].lower()
+    all_sources = list_sources()
+    matches = [s for s in all_sources if query in s.lower()]
+
+    if not matches:
+        console.print(f"[yellow]No indexed document matches:[/yellow] {args[0]}")
+        return
+
+    if len(matches) > 1:
+        console.print(f"[yellow]Multiple matches — be more specific:[/yellow]")
+        for m in matches:
+            console.print(f"  [dim]{m}[/dim]")
+        return
+
+    source = matches[0]
+    console.print(f"Remove [bold]{os.path.basename(source)}[/bold] from index?")
+    confirm = console.input("[bold]Type 'yes' to confirm:[/bold] ").strip().lower()
+    if confirm == "yes":
+        removed = remove_source(source)
+        console.print(f"[green]Removed[/green] {os.path.basename(source)} — {removed} chunks deleted")
+    else:
+        console.print("[dim]Cancelled.[/dim]")
+
+
 def _cmd_clear(_args: list[str]):
     from lens.indexer import list_sources, clear_index
     sources = list_sources()
@@ -154,6 +191,7 @@ COMMANDS = {
     "/ask":    _cmd_ask,
     "/task":   _cmd_task,
     "/docs":   _cmd_docs,
+    "/remove": _cmd_remove,
     "/clear":  _cmd_clear,
 }
 
